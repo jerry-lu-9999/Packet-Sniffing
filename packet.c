@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 /*
  * Standard UNIX includes
@@ -42,6 +43,12 @@
  * The descriptor of the output file.
  */
 FILE * outfile;
+typedef struct url{
+	bool http;
+	bool https;
+	char hbuf[NI_MAXHOST];
+	char *path_name;
+}URL;
 
 /*
  * Function Prototypes
@@ -106,7 +113,7 @@ print_ether (FILE * outfile, const unsigned char ** packet)
 	/*
 	 * Print out the Ethernet information.
 	 */
-	fprintf (outfile, "================= ETHERNET HEADER ==============\n");
+	/* fprintf (outfile, "================= ETHERNET HEADER ==============\n");
 	fprintf (outfile, "Source Address:\t\t");
 	for (index=0; index < ETHER_ADDR_LEN; index++)
 	{
@@ -144,6 +151,7 @@ print_ether (FILE * outfile, const unsigned char ** packet)
 			fprintf (outfile, "Unknown Protocol: %x\n", header.ether_type);
 			break;
 	}
+	*/
 
 	/*
 	 * Adjust the pointer to point after the Ethernet header.
@@ -171,7 +179,7 @@ print_ether (FILE * outfile, const unsigned char ** packet)
  *             header.
  */
 void
-print_ip (FILE * outfile, const unsigned char ** packet)
+print_ip (FILE * outfile, const unsigned char ** packet, URL url)
 {
 	struct ip ip_header;
 	int index;
@@ -188,52 +196,61 @@ print_ip (FILE * outfile, const unsigned char ** packet)
 
 
 	/*
-	 * TODO: Determine size of IP header.
+	 * Determine size of IP header. 
+	 * We use the IHL field in IP header to see how many bytes are in the header
 	 */
-	fprintf(outfile, "%d", ip_header.ip_hl);
-	fprintf(outfile, "================= IP HEADER ==============\n");
-	fprintf(outfile, "Source Address:\t\t");
-	//for (index = 0; index < IN_ADDR_IN; index++){
-		fprintf(outfile, "%s", inet_ntoa(ip_header.ip_src));			//convert network byte order to  string in a human readable form
-		fprintf (outfile, "\n");
-	//}
-		fprintf (outfile, "Destination Address:\t");
-		fprintf (outfile, "%s", inet_ntoa(ip_header.ip_dst));				
-		fprintf (outfile, "\n");
+	int ip_length = ip_header.ip_hl * 32 / 8;	
+	bool options = false;	int options_len = 0;			   
+	if	(ip_length == 20){
+		options = false;
+	}else if (ip_length > 20){
+		options = true;
+		options_len = ip_length - 20;
+	}
 
-		fprintf (outfile, "Protocol Type:\t\t");
-		switch (ip_header.ip_p){
-			case 0x06:
-				fprintf(outfile, "TCP Protocol\n");
-				break;
-			case 0x11:
-				fprintf(outfile, "UDP Protocol\n");
-				break;
-			default:
-				fprintf(outfile, "Other Protocols\n");
-				break;
-		}
+	// fprintf(outfile, "================= IP HEADER ==============\n");
+	// fprintf(outfile, "Source Address:\t\t");
+
+	// 	fprintf(outfile, "%s", inet_ntoa(ip_header.ip_src));			//convert network byte order to  string in a human readable form
+	// 	fprintf (outfile, "\n");
+
+	// 	fprintf (outfile, "Destination Address:\t");
+	// 	fprintf (outfile, "%s", inet_ntoa(ip_header.ip_dst));				
+	// 	fprintf (outfile, "\n");
+
+	// 	fprintf (outfile, "Protocol Type:\t\t");
+	// 	switch (ip_header.ip_p){
+	// 		case 0x06:
+	// 			fprintf(outfile, "TCP Protocol\n");
+	// 			break;
+	// 		case 0x11:
+	// 			fprintf(outfile, "UDP Protocol\n");
+	// 			break;
+	// 		default:
+	// 			fprintf(outfile, "Other Protocols\n");
+	// 			break;
+	// 	}
 
 	struct sockaddr_in sa;    /* input */
     socklen_t len;         /* input */
-    char hbuf[NI_MAXHOST];
+    //char hbuf[NI_MAXHOST] = url.
 
     memset(&sa, 0, sizeof(struct sockaddr_in));
 
     /* For IPv4*/
     sa.sin_family = AF_INET;
-    sa.sin_addr.s_addr = inet_addr(inet_ntoa(ip_header.ip_src));
+    sa.sin_addr.s_addr = inet_addr(inet_ntoa(ip_header.ip_dst));
     len = sizeof(struct sockaddr_in);
 
-    if (getnameinfo((struct sockaddr *) &sa, len, hbuf, sizeof(hbuf), 
+    if (getnameinfo((struct sockaddr *) &sa, len, url.hbuf, sizeof(url.hbuf), 
         NULL, 0, NI_NAMEREQD)) {
-        printf("%s", inet_ntoa(ip_header.ip_src));
+        printf("Could not resolve hostname\nThe IP address is %s", inet_ntoa(ip_header.ip_dst));
     }
     else {
-        printf("host=%s\n", hbuf);
+        //printf("%s\n", url.hbuf);
     }
 
-	*packet += sizeof(struct ip);
+	*packet += ip_length;
 	/*
 	 * Return indicating no errors.
 	 */
@@ -241,31 +258,75 @@ print_ip (FILE * outfile, const unsigned char ** packet)
 }
 
 void
-print_tcp (FILE *outfile, const unsigned char ** packet)
+print_tcp (FILE *outfile, const unsigned char ** packet, URL url)
 {
 	struct tcphdr tcp;
 
 	bcopy(*packet, &tcp, sizeof (struct tcphdr));
 
-	fprintf (outfile, "================= TCP HEADER ==============\n");
-	fprintf (outfile, "Source port:\t\t");
+	/* 
+	 * Determine TCP header length
+	 */
 
-	fprintf (outfile, "%d", htons(tcp.th_sport));
-	fprintf (outfile, "\n");
+	int tcp_len = tcp.th_off * 32 / 8;				//actual length including options in Bytes
 
-	fprintf (outfile, "Destination port\t");
-	fprintf (outfile, "%d", htons(tcp.th_dport));
-	fprintf (outfile, "\n");
+	// fprintf (outfile, "================= TCP HEADER ==============\n");
+	// fprintf (outfile, "Source port:\t\t");
 
-	*packet += sizeof(struct tcphdr);
+	// fprintf (outfile, "%d", htons(tcp.th_sport));
+	// fprintf (outfile, "\n");
+
+	// fprintf (outfile, "Destination port\t");
+	// fprintf (outfile, "%d", htons(tcp.th_dport));
+	// fprintf (outfile, "\n");
+	if (htons(tcp.th_dport) == 80)
+	{
+		url.http = true;
+		url.https = false;
+	}
+
+	if (htons(tcp.th_dport) == 443)
+	{
+		url.https = true;
+		url.http = false;
+	}
+	*packet += tcp_len;
 }
 
 void
-print_http(FILE *outfile, const unsigned char ** packet)
+print_http(FILE *outfile, const unsigned char ** packet, URL url)
 {
-	*packet +=1;
-	printf("%s\n", **packet);
+
+	const unsigned char *start;
+	const unsigned char *begin;
+
+	begin = *packet;
+
+	// the pointer stop right after the first whitespace
+	while(**packet != ' '){
+		*packet += 1;
+	}
+	size_t length = *packet - begin;
+	char *method = (char*)malloc(sizeof(char*)*(length+1));
+	strncpy(method, begin, length);
+	method[length] = '\0';
 	
+	if(strcmp(method, "GET") != 0 && strcmp(method, "POST") != 0 && strcmp(method, "PUT") != 0)
+	{
+		return;
+	} 
+	*packet+= 1;	
+	start = *packet;
+
+	//stop at the second whitespace
+	while (**packet != ' '){	
+		*packet+=1;
+	}
+	size_t len = *packet - start;
+	url.path_name = (char*)malloc(sizeof(char*)*(len+1));
+	strncpy(url.path_name, start, len);
+	url.path_name[len] = '\0';
+	//printf("%s", url.path_name);
 }
 /*
  * Function: process_packet ()
@@ -298,6 +359,7 @@ process_packet (u_char * thing,
 	/* Length of the data */
 	long		packet_length;
 
+	URL url;
 	/*
 	 * Filter the packet using our BPF filter.
 	 */
@@ -315,11 +377,21 @@ process_packet (u_char * thing,
 	/*
 	 * Find the pointer to the IP header.
 	 */
-	print_ip (outfile, &pointer);
+	print_ip (outfile, &pointer, url);
 
-	print_tcp(outfile, &pointer);
+	print_tcp(outfile, &pointer, url);
 
-	print_http(outfile, &pointer);
+	print_http(outfile, &pointer, url);
 
+	//printf("%s", url.path_name);
+	if (url.http == true)
+	{
+		char result[100] = {0};
+		strcat(result, "http://");
+		strcat(result, url.hbuf);
+		printf("%s", url.hbuf);
+		//strcat(result, url.path_name);
+		printf("%s\n", result);
+	}
 	return;
 }
