@@ -1,3 +1,4 @@
+
 #
 # Program: HTTPFilter
 #
@@ -14,12 +15,17 @@ STRUCT HTTPFilter
            # Assume that we have an RFC 894 Ethernet packet; check the protocol
            # number and determine if the packet is an IP packet.
            #
+    VAR %temp
            LDAH 12
-           BEQ 0x0800, %accept, %reject
-%accept    LDAH 36
-           BEQ 80, %true, %false
-%true      RET [(unsigned int)(-1)]
-%false     BEQ 443, %true, %reject
+           BEQ  0x0800,%ip,%reject
+%ip        LDAB 23
+           BEQ  0x06, %tcp, %reject
+%tcp       LDXIPV4LEN
+           LDAH temp, X
+           STX %temp
+           ADD 16
+           BEQ 80, %accept
+           BNE 443, %reject
+%accept    RET [(unsigned int)(-1)]
 %reject    RET 0
            END
-

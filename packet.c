@@ -43,12 +43,11 @@
  * The descriptor of the output file.
  */
 FILE * outfile;
-typedef struct url{
+
 	bool http;
 	bool https;
-	char hbuf[NI_MAXHOST];
+	char hbuf[NI_MAXHOST];			//NI_MAXHOST is defined as 1025
 	char *path_name;
-}URL;
 
 /*
  * Function Prototypes
@@ -179,7 +178,7 @@ print_ether (FILE * outfile, const unsigned char ** packet)
  *             header.
  */
 void
-print_ip (FILE * outfile, const unsigned char ** packet, URL url)
+print_ip (FILE * outfile, const unsigned char ** packet)
 {
 	struct ip ip_header;
 	int index;
@@ -242,12 +241,13 @@ print_ip (FILE * outfile, const unsigned char ** packet, URL url)
     sa.sin_addr.s_addr = inet_addr(inet_ntoa(ip_header.ip_dst));
     len = sizeof(struct sockaddr_in);
 
-    if (getnameinfo((struct sockaddr *) &sa, len, url.hbuf, sizeof(url.hbuf), 
+    if (getnameinfo((struct sockaddr *) &sa, len, hbuf, sizeof(hbuf), 
         NULL, 0, NI_NAMEREQD)) {
-        printf("Could not resolve hostname\nThe IP address is %s", inet_ntoa(ip_header.ip_dst));
+		//perror("Error here");
+        printf("Could not resolve hostname, and the IP address is %s\n", inet_ntoa(ip_header.ip_dst));
     }
     else {
-        //printf("%s\n", url.hbuf);
+        //printf("%s\n", hbuf);
     }
 
 	*packet += ip_length;
@@ -258,7 +258,7 @@ print_ip (FILE * outfile, const unsigned char ** packet, URL url)
 }
 
 void
-print_tcp (FILE *outfile, const unsigned char ** packet, URL url)
+print_tcp (FILE *outfile, const unsigned char ** packet)
 {
 	struct tcphdr tcp;
 
@@ -277,31 +277,30 @@ print_tcp (FILE *outfile, const unsigned char ** packet, URL url)
 	// fprintf (outfile, "\n");
 
 	// fprintf (outfile, "Destination port\t");
-	// fprintf (outfile, "%d", htons(tcp.th_dport));
-	// fprintf (outfile, "\n");
 	if (htons(tcp.th_dport) == 80)
 	{
-		url.http = true;
-		url.https = false;
-	}
-
-	if (htons(tcp.th_dport) == 443)
+		printf("This is a http\n");
+		http = true;
+		https = false;
+	}else if (htons(tcp.th_dport) == 443)
 	{
-		url.https = true;
-		url.http = false;
+		printf("This is a https\n");
+		https = true;
+		http = false;
+	}else{
+		printf("OMITTED\n");
 	}
 	*packet += tcp_len;
 }
 
 void
-print_http(FILE *outfile, const unsigned char ** packet, URL url)
+print_http(FILE *outfile, const unsigned char ** packet)
 {
 
 	const unsigned char *start;
 	const unsigned char *begin;
 
 	begin = *packet;
-
 	// the pointer stop right after the first whitespace
 	while(**packet != ' '){
 		*packet += 1;
@@ -323,10 +322,26 @@ print_http(FILE *outfile, const unsigned char ** packet, URL url)
 		*packet+=1;
 	}
 	size_t len = *packet - start;
-	url.path_name = (char*)malloc(sizeof(char*)*(len+1));
-	strncpy(url.path_name, start, len);
-	url.path_name[len] = '\0';
-	//printf("%s", url.path_name);
+	path_name = (char*)malloc(sizeof(char*)*(len+1));
+	strncpy(path_name, start, len);
+	path_name[len] = '\0';
+
+	char* result = NULL;
+
+	result =(char*)malloc(1000); 
+		
+	if (http == true)
+	{
+		strcat(result, "http://");
+	}else if(https == true)
+	{
+		strcat(result, "https://");
+	}
+		strcat(result, hbuf);
+		printf("%s", result);
+		printf("%s", path_name);
+		printf("\n");
+
 }
 /*
  * Function: process_packet ()
@@ -359,7 +374,6 @@ process_packet (u_char * thing,
 	/* Length of the data */
 	long		packet_length;
 
-	URL url;
 	/*
 	 * Filter the packet using our BPF filter.
 	 */
@@ -377,21 +391,11 @@ process_packet (u_char * thing,
 	/*
 	 * Find the pointer to the IP header.
 	 */
-	print_ip (outfile, &pointer, url);
+	print_ip (outfile, &pointer);
 
-	print_tcp(outfile, &pointer, url);
+	print_tcp(outfile, &pointer);
 
-	print_http(outfile, &pointer, url);
+	print_http(outfile, &pointer);
 
-	//printf("%s", url.path_name);
-	if (url.http == true)
-	{
-		char result[100] = {0};
-		strcat(result, "http://");
-		strcat(result, url.hbuf);
-		printf("%s", url.hbuf);
-		//strcat(result, url.path_name);
-		printf("%s\n", result);
-	}
 	return;
 }
