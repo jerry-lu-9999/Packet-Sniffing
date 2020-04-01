@@ -244,7 +244,7 @@ print_ip (FILE * outfile, const unsigned char ** packet)
     if (getnameinfo((struct sockaddr *) &sa, len, hbuf, sizeof(hbuf), 
         NULL, 0, NI_NAMEREQD)) {
 		//perror("Error here");
-        printf("Could not resolve hostname, and the IP address is %s\n", inet_ntoa(ip_header.ip_dst));
+        printf("the IP address is %s\n", inet_ntoa(ip_header.ip_dst));
     }
     else {
         //printf("%s\n", hbuf);
@@ -279,12 +279,12 @@ print_tcp (FILE *outfile, const unsigned char ** packet)
 	// fprintf (outfile, "Destination port\t");
 	if (htons(tcp.th_dport) == 80)
 	{
-		printf("This is a http\n");
+		//printf("This is a http\n");
 		http = true;
 		https = false;
 	}else if (htons(tcp.th_dport) == 443)
 	{
-		printf("This is a https\n");
+		//printf("This is a https\n");
 		https = true;
 		http = false;
 	}else{
@@ -336,6 +336,7 @@ print_http(FILE *outfile, const unsigned char ** packet)
 	}else if(https == true)
 	{
 		strcat(result, "https://");
+		printf("OMITTED");
 	}
 		strcat(result, hbuf);
 		printf("%s", result);
