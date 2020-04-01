@@ -11,9 +11,14 @@
 static struct bpf_insn HTTPFilter_array [] = 
 {
 	BPF_STMT(BPF_LD+BPF_H+BPF_ABS, 12),
-	BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, 0x0800, 0, 6),
+	BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, 0x0800, 0, 11),
 	BPF_STMT(BPF_LD+BPF_B+BPF_ABS, 23),
-	BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, 0x06, 0, 4),
+	BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, 0x06, 0, 9),
+	BPF_STMT(BPF_LD+BPF_B+BPF_ABS, 14),
+	BPF_STMT(BPF_ALU+BPF_AND+BPF_K, 0x0f),
+	BPF_STMT(BPF_ALU+BPF_MUL+BPF_K, 4),
+	BPF_STMT(BPF_ALU+BPF_ADD+BPF_K, 16),
+	BPF_STMT(BPF_ST, 0),
 	BPF_STMT(BPF_LD+BPF_H+BPF_ABS, 36),
 	BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, 80, 1, 0),
 	BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, 443, 0, 1),
@@ -21,6 +26,6 @@ static struct bpf_insn HTTPFilter_array [] =
 	BPF_STMT(BPF_RET+BPF_K, 0),
 };
 
-static struct bpf_program HTTPFilter = {9, &(HTTPFilter_array[0])};
+static struct bpf_program HTTPFilter = {14, &(HTTPFilter_array[0])};
 
 #endif

@@ -44,11 +44,10 @@
  */
 FILE * outfile;
 
-	bool http;
-	bool https;
 	char hbuf[NI_MAXHOST];			//NI_MAXHOST is defined as 1025
-	char *path_name;
-
+	char *path_name;		
+	char ipbuf[15];				    //the maximum number of characters IPv4 address can have is 15
+	int port_num;
 /*
  * Function Prototypes
  */
@@ -110,49 +109,6 @@ print_ether (FILE * outfile, const unsigned char ** packet)
 	bcopy (*packet, &header, sizeof (struct ether_header));
 
 	/*
-	 * Print out the Ethernet information.
-	 */
-	/* fprintf (outfile, "================= ETHERNET HEADER ==============\n");
-	fprintf (outfile, "Source Address:\t\t");
-	for (index=0; index < ETHER_ADDR_LEN; index++)
-	{
-		fprintf (outfile, "%x", header.ether_shost[index]);
-	}
-	fprintf (outfile, "\n");
-
-	fprintf (outfile, "Destination Address:\t");
-	for (index=0; index < ETHER_ADDR_LEN; index++)
-	{
-		fprintf (outfile, "%x", header.ether_dhost[index]);
-	}
-	fprintf (outfile, "\n");
-
-	fprintf (outfile, "Protocol Type:\t\t");
-	switch (ntohs(header.ether_type))
-	{
-		case ETHERTYPE_PUP:
-			fprintf (outfile, "PUP Protocol\n");
-			break;
-
-		case ETHERTYPE_IP:
-			fprintf (outfile, "IP Protocol\n");
-			break;
-
-		case ETHERTYPE_ARP:
-			fprintf (outfile, "ARP Protocol\n");
-			break;
-
-		case ETHERTYPE_REVARP:
-			fprintf (outfile, "RARP Protocol\n");
-			break;
-
-		default:
-			fprintf (outfile, "Unknown Protocol: %x\n", header.ether_type);
-			break;
-	}
-	*/
-
-	/*
 	 * Adjust the pointer to point after the Ethernet header.
 	 */
 	*packet += sizeof (struct ether_header);
@@ -207,32 +163,8 @@ print_ip (FILE * outfile, const unsigned char ** packet)
 		options_len = ip_length - 20;
 	}
 
-	// fprintf(outfile, "================= IP HEADER ==============\n");
-	// fprintf(outfile, "Source Address:\t\t");
-
-	// 	fprintf(outfile, "%s", inet_ntoa(ip_header.ip_src));			//convert network byte order to  string in a human readable form
-	// 	fprintf (outfile, "\n");
-
-	// 	fprintf (outfile, "Destination Address:\t");
-	// 	fprintf (outfile, "%s", inet_ntoa(ip_header.ip_dst));				
-	// 	fprintf (outfile, "\n");
-
-	// 	fprintf (outfile, "Protocol Type:\t\t");
-	// 	switch (ip_header.ip_p){
-	// 		case 0x06:
-	// 			fprintf(outfile, "TCP Protocol\n");
-	// 			break;
-	// 		case 0x11:
-	// 			fprintf(outfile, "UDP Protocol\n");
-	// 			break;
-	// 		default:
-	// 			fprintf(outfile, "Other Protocols\n");
-	// 			break;
-	// 	}
-
 	struct sockaddr_in sa;    /* input */
     socklen_t len;         /* input */
-    //char hbuf[NI_MAXHOST] = url.
 
     memset(&sa, 0, sizeof(struct sockaddr_in));
 
@@ -244,10 +176,12 @@ print_ip (FILE * outfile, const unsigned char ** packet)
     if (getnameinfo((struct sockaddr *) &sa, len, hbuf, sizeof(hbuf), 
         NULL, 0, NI_NAMEREQD)) {
 		//perror("Error here");
-        printf("the IP address is %s\n", inet_ntoa(ip_header.ip_dst));
+        //printf("the IP address is %s\n", inet_ntoa(ip_header.ip_dst));
+		strcpy(ipbuf, inet_ntoa(ip_header.ip_dst));
+		ipbuf[14] = '\0';
     }
     else {
-        //printf("%s\n", hbuf);
+        //printf("The hostname is %s\n", hbuf);
     }
 
 	*packet += ip_length;
@@ -271,24 +205,17 @@ print_tcp (FILE *outfile, const unsigned char ** packet)
 	int tcp_len = tcp.th_off * 32 / 8;				//actual length including options in Bytes
 
 	// fprintf (outfile, "================= TCP HEADER ==============\n");
-	// fprintf (outfile, "Source port:\t\t");
 
-	// fprintf (outfile, "%d", htons(tcp.th_sport));
+	// fprintf (outfile, "%d", htons(tcp.th_dport));
 	// fprintf (outfile, "\n");
 
-	// fprintf (outfile, "Destination port\t");
+	// fprintf (outfile, "Destination port\n");
 	if (htons(tcp.th_dport) == 80)
 	{
-		//printf("This is a http\n");
-		http = true;
-		https = false;
+		port_num = 80;
 	}else if (htons(tcp.th_dport) == 443)
 	{
-		//printf("This is a https\n");
-		https = true;
-		http = false;
-	}else{
-		printf("OMITTED\n");
+		port_num = 443;
 	}
 	*packet += tcp_len;
 }
@@ -296,52 +223,52 @@ print_tcp (FILE *outfile, const unsigned char ** packet)
 void
 print_http(FILE *outfile, const unsigned char ** packet)
 {
-
-	const unsigned char *start;
-	const unsigned char *begin;
-
-	begin = *packet;
-	// the pointer stop right after the first whitespace
-	while(**packet != ' '){
-		*packet += 1;
-	}
-	size_t length = *packet - begin;
-	char *method = (char*)malloc(sizeof(char*)*(length+1));
-	strncpy(method, begin, length);
-	method[length] = '\0';
-	
-	if(strcmp(method, "GET") != 0 && strcmp(method, "POST") != 0 && strcmp(method, "PUT") != 0)
-	{
-		return;
-	} 
-	*packet+= 1;	
-	start = *packet;
-
-	//stop at the second whitespace
-	while (**packet != ' '){	
-		*packet+=1;
-	}
-	size_t len = *packet - start;
-	path_name = (char*)malloc(sizeof(char*)*(len+1));
-	strncpy(path_name, start, len);
-	path_name[len] = '\0';
-
-	char* result = NULL;
-
+  	char* result = NULL;
 	result =(char*)malloc(1000); 
+	result[0] = '\0';
+
+  	if(port_num == 80)
+  	{
+		const unsigned char *start;
+		const unsigned char *begin;
+
+		begin = *packet;
+		// the pointer stop right after the first whitespace
+		while(**packet != ' '){
+			*packet += 1;
+		}
+		size_t length = *packet - begin;
+		char *method = (char*)malloc(sizeof(char*)*(length+1));
+		strncpy(method, begin, length);
+		method[length] = '\0';
 		
-	if (http == true)
-	{
+		if(strcmp(method, "GET") != 0 && strcmp(method, "POST") != 0 && strcmp(method, "PUT") != 0)
+		{
+			return;
+		} 
+		*packet+= 1;	
+		start = *packet;
+
+		//stop at the second whitespace
+		while (**packet != ' '){	
+			*packet+=1;
+		}
+		size_t len = *packet - start;
+		path_name = (char*)malloc(sizeof(char*)*(len+1));
+		strncpy(path_name, start, len);
+		path_name[len] = '\0';
+			
 		strcat(result, "http://");
-	}else if(https == true)
-	{
-		strcat(result, "https://");
-		printf("OMITTED");
-	}
 		strcat(result, hbuf);
 		printf("%s", result);
-		printf("%s", path_name);
-		printf("\n");
+		printf("%s\n", path_name);
+	}else if(port_num == 443)
+	{
+		strcat(result, "https://");
+		strcat(result, ipbuf);
+		printf("%s", result);
+		printf("/OMITTED\n");
+	}
 
 }
 /*
